@@ -20,6 +20,68 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE. """
 
+"""
+This is script is a tool that can be used by servers to verify oAuth tokens.
+
+To speed login flow, many mobile apps allow users to log in with their
+Facebook/Google/Twitter accounts. The results of such logins are stable
+User IDs that can be added to the database of your backend server.
+
+However, how can your server know if the request is really coming from
+a given User ID? You need to check the oAuth token coming from the mobile
+application, and that's what this script does.
+
+Facebook/Google:
+
+facebook_token = "abc"
+facebook_id = "123"
+facebook_verifier = FacebookVerifier(facebook_token, facebook_id)
+
+google_token = "def"
+google_id = "456"
+google_verifier = GoogleVerifier(google_token, google_id)
+
+
+try:
+    facebook_verifier.verify()
+    google_verifier.verify()
+
+except OAuthException as e:
+    #An exception is thrown if the oAuth token is invalid or doesn't belong to
+    #the provided user ID.
+
+---
+
+Twitter:
+
+Twitter uses the oAuth 1.0 API which makes things more complicated. You'll need:
+
+Your application's consumer key (keep it secret!)
+Your application's consumer secret (keep it secret!)
+Your user's oAuth token (get this from the mobile Twitter SDK)
+your user's oAuth token secret (get this from the mobile Twitter SDK)
+
+tw_token = "abc"
+tw_token_secret = "def"
+tw_id = "789"
+tw_consumer_key = "foo"
+tw_consumer_secret = "bar"
+
+tw_verifier = verifier.TwitterVerifier(tw_token,
+                                       tw_id,
+                                       tw_consumer_key,
+                                       tw_consumer_secret,
+                                       tw_token_secret)
+
+try:
+    tw_verifier.verify()
+
+except OAuthException as e:
+    #An exception is thrown if the oAuth token is invalid or doesn't belong to
+    #the provided user ID.
+
+"""
+
 __author__ = 'Nigel Brady'
 
 import urllib
@@ -33,12 +95,15 @@ class OAuthVerifier:
     user_id = None
     url = None
     user_id_field = None
+    request = None
+    debug = False
 
-    def __init__(self, token, user_id, url, user_id_field="id"):
+    def __init__(self, token, user_id, url, user_id_field="id", debug=False):
         self.token = token
         self.user_id = user_id
         self.url = url
         self.user_id_field = user_id_field
+        self.debug = debug
 
     def verify(self):
         if not self.token or not self.user_id:
@@ -46,13 +111,18 @@ class OAuthVerifier:
 
         params = {"access_token": self.token}
         query_string = urllib.urlencode(params)
-        request = self.url + "?" + query_string
+        self.request = self.url + "?" + query_string
+        self.execute_request()
 
+    def execute_request(self):
         try:
-            result = urllib2.urlopen(request)
+            result = urllib2.urlopen(self.request)
             response = result.read()
 
             result_dict = json.loads(response)
+
+            if self.debug:
+                print response
 
             if self.user_id_field in result_dict and result_dict[self.user_id_field] == self.user_id:
                 return
@@ -72,13 +142,21 @@ class OAuthException(Exception):
 
 
 class FacebookVerifier(OAuthVerifier):
-    def __init__(self, token, user_id):
-        OAuthVerifier.__init__(self, token, user_id, "https://graph.facebook.com/me")
+    def __init__(self, token, user_id, debug=False):
+        OAuthVerifier.__init__(self,
+                               token,
+                               user_id,
+                               "https://graph.facebook.com/me",
+                               debug=debug)
 
 
 class GoogleVerifier(OAuthVerifier):
-    def __init__(self, token, user_id):
-        OAuthVerifier.__init__(self, token, user_id, "https://www.googleapis.com/oauth2/v1/tokeninfo", "user_id")
+    def __init__(self, token, user_id, debug=False):
+        OAuthVerifier.__init__(self,
+                               token,
+                               user_id,
+                               "https://www.googleapis.com/oauth2/v1/tokeninfo",
+                               "user_id", debug=debug)
 
 
 class TwitterVerifier(OAuthVerifier):
@@ -86,10 +164,14 @@ class TwitterVerifier(OAuthVerifier):
     consumer_secret = None
     token_secret = None
 
-    def __init__(self, token, user_id, consumer_key, consumer_secret, token_secret):
-        OAuthVerifier.__init__(self, token, user_id,
+    def __init__(self, token, user_id, consumer_key, consumer_secret, token_secret, debug=False):
+        OAuthVerifier.__init__(self,
+                               token,
+                               user_id,
                                "https://api.twitter.com/1.1/account/verify_credentials.json",
-                               "id_str")
+                               "id_str",
+                               debug=debug)
+
         self.consumer_key = consumer_key
         self.consumer_secret = consumer_secret
         self.token_secret = token_secret
@@ -107,24 +189,8 @@ class TwitterVerifier(OAuthVerifier):
         oauth_request.sign_request(signature_method_hmac_sha1, consumer, oauth_token)
 
         headers = oauth_request.to_header()
+        self.request = urllib2.Request(self.url, headers=headers)
+        self.execute_request()
 
-        try:
-            req = urllib2.Request(self.url, headers=headers)
-            result = urllib2.urlopen(req)
-            response = result.read()
 
-            print response
-
-            result_dict = json.loads(response)
-
-            if self.user_id_field in result_dict and result_dict[self.user_id_field] == self.user_id:
-                return
-
-            raise OAuthException()
-
-        except urllib2.HTTPError as e:
-            if e.code == 401:
-                raise OAuthException()
-            else:
-                raise e
 
