@@ -13,6 +13,13 @@ application, and that's what this script does.
 
 ##Facebook/Google:
 
+You'll need:
+
+    - Your user's oAuth token
+    - Your user's ID
+    
+You'll usually get these values from a successful login with the Facebook/Google mobile SDKs.
+
 ```python
 
 facebook_token = "abc"
@@ -40,8 +47,16 @@ Twitter uses the oAuth 1.0 API which makes things more complicated. You'll need:
 
     -Your application's consumer key (keep it secret!)
     -Your application's consumer secret (keep it secret!)
-    -Your user's oAuth token (get this from the mobile Twitter SDK)
-    -Your user's oAuth token secret (get this from the mobile Twitter SDK)
+    
+You are assigned these values when you create your application on Twitter's developer page.
+
+You'll also need:
+    
+    -Your user's ID
+    -Your user's oAuth token
+    -Your user's oAuth token secret
+    
+You get these values from a successful login with the Twitter mobile SDK.
     
 ```python
 
@@ -65,3 +80,14 @@ except OAuthException as e:
     #the provided user ID.
     
 ```
+
+##Future Work
+I'm a fan of Google App Engine. Perhaps next I'll write a request handler
+to automatically perform this verification on all incoming requests.
+
+##Acknowledgements
+Thanks to Leah Culver for her [python-oauth library](https://github.com/leah/python-oauth/), 
+used for Twitter oAuth verification.
+
+##License:
+This project is MIT licensed. See LICENSE.txt for more details. Enjoy!
