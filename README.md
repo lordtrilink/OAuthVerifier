@@ -108,9 +108,18 @@ from OAuthVerifier import handler
 from OAuthVerifier.verifier import OAuthException
 
 class HelloHandler(handler.OAuthHandler):
+
+  #Set these properties if you're using Twitter authentication.
+  consumer_key = "abc"
+  consumer_secret = "def"
+  
   def get(self):
     try:
       self.authorize_user() #Throws an OAuthException if it fails.
+      
+      #Authorization succeeded! Use self.user_id and self.user_service
+      #to get the user ID and service used to log in (Twitter, Facebook, Google)
+      
       self.response.write('Hello world!\n')
       self.response.write('You logged in with %s\n' % self.user_service)
       self.response.write('Your User ID is: %s' % self.user_id)
