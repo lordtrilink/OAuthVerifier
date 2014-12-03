@@ -59,81 +59,86 @@ self.user_id #The User's ID from the social service.
 self.user_service #The service used to log in ('Facebook', 'Google', or 'Twitter')
 
 If the oAuth token is invalid, or does not belong to the specified user,
-the handler will respond with HTTP 401 unauthorized.
+the handler will throw an OAuthException.
 
 If you require a specific user to be logged in, call authorize_user(required_user="foo").
-If the request does not use "foo"'s credentials, the handler will respond
-with HTTP 401 Unauthorized.
+If the request does not use "foo"'s credentials, the handler will raise an OAuthException.
+
+If you don't want to deal with exceptions, use try_authorize_user(), which returns True
+if the authorization succeeded and False if it failed.
 
 """
 
 
 class OAuthHandler(webapp2.RequestHandler):
 
-    #You can set a custom array of services you want to support.
-    supported_services = [TWITTER_SERVICE, FACEBOOK_SERVICE, GOOGLE_SERVICE]
+  #You can set a custom array of services you want to support.
+  supported_services = [TWITTER_SERVICE, FACEBOOK_SERVICE, GOOGLE_SERVICE]
 
-    #Only necessary for Twitter. These should be kept secret.
-    consumer_key = None
-    consumer_secret = None
+  #Only necessary for Twitter. These should be kept secret.
+  consumer_key = None
+  consumer_secret = None
 
-    #Filled in by authorize_user() after successful execution.
-    user_service = None
-    user_id = None
+  #Filled in by authorize_user() after successful execution.
+  user_service = None
+  user_id = None
 
-    def authorize_user(self, required_user=None):
-        try:
-            authorization_header = self.request.headers.get("Authorization")
+  def authorize_user(self, required_user=None):
 
-            if not authorization_header:
-                raise verifier.OAuthException("Authorization header is required.")
+    authorization_header = self.request.headers.get("Authorization")
 
-            fb_goog_re = re.compile("(Facebook|Google) (.+)\|(.+)")
-            twitter_re = re.compile("Twitter (.+)\|(.+)\|(.+)")
+    if not authorization_header:
+      raise verifier.OAuthException("Authorization header is required.")
 
-            fb_goog_match = fb_goog_re.match(authorization_header)
-            twitter_match = twitter_re.match(authorization_header)
+    fb_goog_re = re.compile("(Facebook|Google) (.+)\|(.+)")
+    twitter_re = re.compile("Twitter (.+)\|(.+)\|(.+)")
 
-            if not fb_goog_match and not twitter_match:
-                raise verifier.OAuthException("Malformed authorization header.")
+    fb_goog_match = fb_goog_re.match(authorization_header)
+    twitter_match = twitter_re.match(authorization_header)
 
-            if twitter_match:
+    if not fb_goog_match and not twitter_match:
+      raise verifier.OAuthException("Malformed authorization header.")
 
-                if TWITTER_SERVICE not in self.supported_services:
-                    raise verifier.OAuthException("Twitter authentication not supported.")
+    if twitter_match:
 
-                user_id = twitter_match.group(1)
-                token = twitter_match.group(2)
-                token_secret = twitter_match.group(3)
+      if TWITTER_SERVICE not in self.supported_services:
+        raise verifier.OAuthException("Twitter authentication not supported.")
 
-                self.user_id = verifier.TwitterVerifier(token,
-                                                        user_id,
-                                                        self.consumer_key,
-                                                        self.consumer_secret,
-                                                        token_secret).verify()
-                self.user_service = TWITTER_SERVICE
+      user_id = twitter_match.group(1)
+      token = twitter_match.group(2)
+      token_secret = twitter_match.group(3)
 
-            else:
-                service = fb_goog_match.group(1)
-                user_id = fb_goog_match.group(2)
-                token = fb_goog_match.group(3)
+      self.user_id = verifier.TwitterVerifier(token,
+                                              user_id,
+                                              self.consumer_key,
+                                              self.consumer_secret,
+                                              token_secret).verify()
+      self.user_service = TWITTER_SERVICE
 
-                if service not in self.supported_services:
-                    raise verifier.OAuthException("%s authentication not supported." % service)
+    else:
+      service = fb_goog_match.group(1)
+      user_id = fb_goog_match.group(2)
+      token = fb_goog_match.group(3)
 
-                elif service == FACEBOOK_SERVICE:
-                    self.user_id = verifier.FacebookVerifier(token, user_id)
+      if service not in self.supported_services:
+        raise verifier.OAuthException("%s authentication not supported." % service)
 
-                else:
-                    self.user_id = verifier.GoogleVerifier(token, user_id)
+      elif service == FACEBOOK_SERVICE:
+        self.user_id = verifier.FacebookVerifier(token, user_id)
 
-                self.user_service = service
+      else:
+        self.user_id = verifier.GoogleVerifier(token, user_id)
 
-            if required_user and required_user != self.user_id:
-                raise verifier.OAuthException("User %s is unauthorized." % user_id)
+      self.user_service = service
 
-        except verifier.OAuthException as e:
-            self.error(401)
-            self.response.write(e.message)
+    if required_user and required_user != self.user_id:
+      raise verifier.OAuthException("User %s is unauthorized." % user_id)
+
+  def try_authorize_user(self, required_user=None):
+    try:
+      self.authorize_user(required_user)
+      return True
+    except verifier.OAuthException as e:
+      return False
 
 
