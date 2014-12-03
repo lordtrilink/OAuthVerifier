@@ -140,6 +140,9 @@ class OAuthException(Exception):
     def __init__(self):
         Exception.__init__(self, "Access token invalid or does not belong to the current user.")
 
+    def __init__(self, message):
+        Exception.__init__(self, message)
+
 
 class FacebookVerifier(OAuthVerifier):
     def __init__(self, token, user_id, debug=False):
