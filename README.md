@@ -81,9 +81,51 @@ except OAuthException as e:
     
 ```
 
-##Future Work
-I'm a fan of Google App Engine. Perhaps next I'll write a request handler
-to automatically perform this verification on all incoming requests.
+##Google App Engine (webapp2) Handler:
+
+I originally wrote this tool for use with Google App Engine. The idea is to collect the oAuth information in the HTTP headers and use the verifier classes to check it. This class handles most of the heavy lifting for you!
+
+On the mobile end, put the following in your HTTP Authorization header:
+
+**Facebook**
+```
+Authorization: Facebook <user_id>|<auth_token>
+```
+**Google**
+```
+Authorization: Google <user_id>|<auth_token>
+```
+**Twitter**
+```
+Authorization: Twitter <user_id>|<auth_token>|<auth_token_secret>
+```
+
+On the server end, inherit from the OAuthHandler class and respond to the request as follows:
+
+```python
+
+from OAuthVerifier import handler
+from OAuthVerifier.verifier import OAuthException
+
+class HelloHandler(handler.OAuthHandler):
+  def get(self):
+    try:
+      self.authorize_user() #Throws an OAuthException if it fails.
+      self.response.write('Hello world!\n')
+      self.response.write('You logged in with %s\n' % self.user_service)
+      self.response.write('Your User ID is: %s' % self.user_id)
+
+    except OAuthException as e:
+      self.error(401)
+      self.response.write("Authorization failed: %s" % e.message)
+      print traceback.format_exc()
+
+    except Exception as e:
+      self.error(401)
+      self.response.write("Something went wrong: %s" % e.message)
+      print traceback.format_exc()
+      
+```
 
 ##Acknowledgements
 Thanks to Leah Culver for her [python-oauth library](https://github.com/leah/python-oauth/), 
