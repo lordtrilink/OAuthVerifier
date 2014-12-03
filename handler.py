@@ -124,10 +124,10 @@ class OAuthHandler(webapp2.RequestHandler):
         raise verifier.OAuthException("%s authentication not supported." % service)
 
       elif service == FACEBOOK_SERVICE:
-        self.user_id = verifier.FacebookVerifier(token, user_id)
+        self.user_id = verifier.FacebookVerifier(token, user_id).verify()
 
       else:
-        self.user_id = verifier.GoogleVerifier(token, user_id)
+        self.user_id = verifier.GoogleVerifier(token, user_id).verify()
 
       self.user_service = service
 
