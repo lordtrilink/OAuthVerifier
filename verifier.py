@@ -131,7 +131,9 @@ class OAuthVerifier:
 
         except urllib2.HTTPError as e:
             if e.code == 401:
-                raise OAuthException()
+                raise OAuthException("Authorization failed.")
+            elif e.code == 400:
+                raise OAuthException("Bad request. Auth token is likely invalid.")
             else:
                 raise e
 
