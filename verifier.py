@@ -112,7 +112,7 @@ class OAuthVerifier:
         params = {"access_token": self.token}
         query_string = urllib.urlencode(params)
         self.request = self.url + "?" + query_string
-        self.execute_request()
+        return self.execute_request()
 
     def execute_request(self):
         try:
@@ -125,9 +125,9 @@ class OAuthVerifier:
                 print response
 
             if self.user_id_field in result_dict and result_dict[self.user_id_field] == self.user_id:
-                return
-
-            raise OAuthException()
+                return result_dict[self.user_id_field]
+            else:
+                raise OAuthException()
 
         except urllib2.HTTPError as e:
             if e.code == 401:
@@ -190,7 +190,8 @@ class TwitterVerifier(OAuthVerifier):
 
         headers = oauth_request.to_header()
         self.request = urllib2.Request(self.url, headers=headers)
-        self.execute_request()
+        return self.execute_request()
+
 
 
 
