@@ -25,6 +25,9 @@ __author__ = 'nigel'
 import webapp2
 import verifier
 import re
+import hashlib
+
+from google.appengine.api import memcache
 
 TWITTER_SERVICE = "Twitter"
 FACEBOOK_SERVICE = "Facebook"
@@ -71,8 +74,7 @@ if the authorization succeeded and False if it failed.
 
 
 class OAuthHandler(webapp2.RequestHandler):
-
-  #You can set a custom array of services you want to support.
+  # You can set a custom array of services you want to support.
   supported_services = [TWITTER_SERVICE, FACEBOOK_SERVICE, GOOGLE_SERVICE]
 
   #Only necessary for Twitter. These should be kept secret.
@@ -82,6 +84,15 @@ class OAuthHandler(webapp2.RequestHandler):
   #Filled in by authorize_user() after successful execution.
   user_service = None
   user_id = None
+
+  #Cut down on network traffic by saving oAuth tokens
+  #to memcache. Requests can then be verfied without hitting the
+  #service provider. Note that if you turn this option off,
+  # you might run up against rate limits from the 3rd party provider.
+  use_credential_caching = True
+
+  #Expiration time for cached tokens
+  credential_caching_period = 900
 
   def authorize_user(self, required_user=None):
 
@@ -108,12 +119,15 @@ class OAuthHandler(webapp2.RequestHandler):
       token = twitter_match.group(2)
       token_secret = twitter_match.group(3)
 
-      self.user_id = verifier.TwitterVerifier(token,
-                                              user_id,
-                                              self.consumer_key,
-                                              self.consumer_secret,
-                                              token_secret).verify()
-      self.user_service = TWITTER_SERVICE
+      if not self.load_cached_credentials(TWITTER_SERVICE, user_id, token, token_secret):
+        self.user_id = verifier.TwitterVerifier(token,
+                                                user_id,
+                                                self.consumer_key,
+                                                self.consumer_secret,
+                                                token_secret).verify()
+        self.user_service = TWITTER_SERVICE
+
+        self.cache_credentials(TWITTER_SERVICE, user_id, token, token_secret)
 
     else:
       service = fb_goog_match.group(1)
@@ -123,13 +137,20 @@ class OAuthHandler(webapp2.RequestHandler):
       if service not in self.supported_services:
         raise verifier.OAuthException("%s authentication not supported." % service)
 
+      elif self.load_cached_credentials(service, user_id, token):
+        pass
+
       elif service == FACEBOOK_SERVICE:
         self.user_id = verifier.FacebookVerifier(token, user_id).verify()
+        self.user_service = FACEBOOK_SERVICE
+
+        self.cache_credentials(FACEBOOK_SERVICE, user_id, token)
 
       else:
         self.user_id = verifier.GoogleVerifier(token, user_id).verify()
+        self.user_service = GOOGLE_SERVICE
 
-      self.user_service = service
+        self.cache_credentials(GOOGLE_SERVICE, user_id, token)
 
     if required_user and required_user != self.user_id:
       raise verifier.OAuthException("User %s is unauthorized." % user_id)
@@ -140,5 +161,39 @@ class OAuthHandler(webapp2.RequestHandler):
       return True
     except verifier.OAuthException as e:
       return False
+
+  @staticmethod
+  def key_for_credentials(service, user_id, token, token_secret=None):
+
+    key = "OAuthVerifier|{0}|{1}|{2}".format(service, user_id, token)
+
+    if token_secret:
+      key += "|{0}".format(token_secret)
+
+    return hashlib.sha256(key).hexdigest()
+
+  def load_cached_credentials(self, service, user_id, token, token_secret=None):
+
+    cache_key = OAuthHandler.key_for_credentials(service, user_id, token, token_secret)
+
+    if self.use_credential_caching and memcache.get(cache_key):
+      self.user_id = user_id
+      self.user_service = service
+      print("Found cached credentials.")
+      return True
+
+    else:
+      print("Caching is off or credentials not found.")
+      return False
+
+  def cache_credentials(self, service, user_id, token, token_secret=None):
+    cache_key = OAuthHandler.key_for_credentials(service, user_id, token, token_secret)
+    memcache.add(cache_key, True, time=self.credential_caching_period)
+
+
+
+
+
+
 
 
