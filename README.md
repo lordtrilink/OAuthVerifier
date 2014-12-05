@@ -136,6 +136,20 @@ class HelloHandler(handler.OAuthHandler):
       
 ```
 
+To avoid hitting the social services with every request, oAuth tokens are SHA256 hashed
+and stored in memcache for 15 minutes. You can turn this behavior off, or adjust the caching
+period as follows:
+
+```python
+class NoCacheHandler(handler.OAuthHandler):
+
+    use_credential_caching = False #Turn off caching...
+    credential_caching_period = 900 # Or change caching period...
+```
+
+Note that if you turn caching off entirely, you might run into API rate limits from Twitter
+and other services.
+
 ##Acknowledgements
 Thanks to Leah Culver for her [python-oauth library](https://github.com/leah/python-oauth/), 
 used for Twitter oAuth verification.
